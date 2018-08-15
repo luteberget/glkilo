@@ -1,0 +1,11 @@
+[package]
+name = "exercise_editors"
+version = "0.1.0"
+authors = ["Bjørnar Luteberget <luteberget@gmail.com>"]
+
+[dependencies]
+gfx = "*"
+gfx_window_glutin = "*"
+gfx_glyph = "*"
+glutin = "*"
+font-loader = "*"
