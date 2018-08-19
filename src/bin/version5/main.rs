@@ -4,6 +4,8 @@ extern crate gfx_window_glutin;
 extern crate glutin;
 extern crate font_loader;
 
+mod glyph_positioner;
+
 use glutin::GlContext;
 use gfx::Device;
 use font_loader::system_fonts;
@@ -36,7 +38,9 @@ fn get_line(prompt :&str, default :&str) -> String {
                 &events_loop
             );
 
-    let mut property = system_fonts::FontPropertyBuilder::new().family("FantasqueSansMono Nerd Font").build();
+    let mut property = system_fonts::FontPropertyBuilder::new()
+        .family("FantasqueSansMono Nerd Font")
+        .build();
     let font = system_fonts::get(&property).unwrap().0;
     let mut glyph_brush_builder = gfx_glyph::GlyphBrushBuilder::using_font_bytes(font);
     let mut glyph_brush = glyph_brush_builder.build(factory.clone());
@@ -124,24 +128,37 @@ fn get_line(prompt :&str, default :&str) -> String {
         let (width, height) = (f32::from(width), f32::from(height));
 
         let size  = f32::min(40.0, height*0.5);
+        let scale = gfx_glyph::Scale::uniform(size);
 
         let section = gfx_glyph::Section {
             text: &buffer,
-            scale: gfx_glyph::Scale::uniform(size),
+            scale: scale,
             screen_position: (0.0, 0.0),
             color: [0.98,0.99,0.99, 1.0],
             .. Default::default()
         };
 
+        const CARET :&str = "^";
+        let caret_size = glyph_brush.pixel_bounds(gfx_glyph::Section {
+            text: CARET,
+            scale: scale,
+            .. Default::default()
+        }).unwrap();
 
-        let cursor_pos = glyph_brush.pixel_bounds(gfx_glyph::Section {
+        let layout = glyph_positioner::SimpleGlyphPositioner {};
+        let caret_x :f32 = glyph_brush.glyphs_custom_layout(gfx_glyph::Section {
             text: &buffer.chars().take(output_start + cursor).collect::<String>(),
-            .. section }).unwrap();
+            .. section }, &layout).map(|g| {
+            g.unpositioned().h_metrics().advance_width}).sum();
+
+        let line_height = glyph_brush.fonts()[gfx_glyph::FontId::default()]
+            .v_metrics(scale).ascent;
+
         glyph_brush.queue(gfx_glyph::Section {
-            text: &"^",
-            scale: gfx_glyph::Scale::uniform(size),
-            screen_position: (cursor_pos.max.x as f32, cursor_pos.max.y as f32),
-            color: [1.0, 0.7, 0.6, 1.0],
+            text: CARET,
+            scale: scale,
+            screen_position: (caret_x - 0.5*(caret_size.width() as f32), line_height),
+            color: [1.0, 0.5, 0.2, 1.0],
             .. section
         });
         glyph_brush.queue(section);
