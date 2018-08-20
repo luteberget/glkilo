@@ -1,3 +1,5 @@
+use fenwick::Fenwick;
+
 pub struct Buffer {
     text :Vec<char>,
 }
@@ -7,8 +9,7 @@ pub struct Document {
     append :Buffer,
 
     pieces :Vec<Ref>,
-    length_sum: Vec<usize>,
-
+    length_sum: Fenwick,
 }
 
 pub enum Ref {
@@ -19,12 +20,14 @@ pub enum Ref {
 impl Document {
     pub fn new(text :String) -> Document {
         let text :Vec<char> = text.chars().collect();
-        let length = text.len();
+        let length     = text.len();
+        let mut length_sum = Fenwick::new();
+        length_sum.add(0,length);
         Document {
             original: Buffer { text: text },
             append:   Buffer { text: Vec::new() },
             pieces:    vec![ Ref::Original(0, length) ],
-            length_sum:vec![length],
+            length_sum:length_sum,
         }
     }
 
@@ -35,14 +38,8 @@ impl Document {
         }
     }
 
-    pub fn find_piece(&self, idx :usize) -> (usize, usize) {
-        unimplemented!()
+    pub fn insert(&mut self, idx :usize, c :char) {
     }
-
-    pub fn insert(&mut self) {
-        unimplemented!()
-    }
-
 }
 
 
