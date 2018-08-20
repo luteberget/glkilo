@@ -1,4 +1,5 @@
 
+#[derive(Debug)]
 pub struct Fenwick(Vec<usize>);
 impl Fenwick {
     pub fn new() -> Self {
@@ -91,6 +92,16 @@ impl Fenwick {
 #[cfg(test)]
 mod tests {
     use rand::{thread_rng, Rng, distributions::{Distribution, Range}};
+
+    #[test]
+    fn test_prefix() {
+        let mut f = super::Fenwick(Vec::new());
+        assert_eq!(f.find_prefix(0), Err(0));
+
+        f.add(0,1);
+        f.add(1,2);
+        assert_eq!(f.find_prefix(2), Err(1));
+    }
 
     #[test]
     fn find() {
