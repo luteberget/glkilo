@@ -12,9 +12,19 @@ pub struct Document {
     length_sum: Fenwick,
 }
 
+#[derive(Copy, Clone,Debug)]
 pub enum Ref {
     Original(usize, usize),
     Append(usize, usize),
+}
+
+impl Ref {
+    pub fn len(&self) -> usize { 
+        match self {
+            Ref::Original(_,l) => *l,
+            Ref::Append(_,l) => *l,
+        }
+    }
 }
 
 impl Document {
@@ -31,7 +41,7 @@ impl Document {
         }
     }
 
-    pub fn get_ref(&self, r :&Ref) -> &[char] {
+    fn get_ref(&self, r :&Ref) -> &[char] {
         match r {
             Ref::Original(idx,len) => &self.original.text[*idx..(idx+len)],
             Ref::Append(idx,len) => &self.append.text[*idx..(idx+len)],
@@ -39,6 +49,93 @@ impl Document {
     }
 
     pub fn insert(&mut self, idx :usize, c :char) {
+        println!("OLD piece table:");
+        for x in &self.pieces {
+            println!("  - {:?}", x);
+        }
+        println!("  orig:{}\n  apnd:{}", self.original.text.iter().collect::<String>(), self.append.text.iter().collect::<String>());
+        println!("  FIND {}@ {:?}", idx, self.length_sum.find_prefix(idx));
+        match self.length_sum.find_prefix(idx) {
+            Ok(piece_idx) => { // Add to/after end of piece
+                match self.pieces[piece_idx] {
+                    Ref::Original(x, l) => {
+                        // Insert new piece
+                        println!("NEW PIECE");
+                        let idx = self.append.text.len();
+                        self.append.text.push(c);
+                        self.pieces.insert(piece_idx+1, Ref::Append(idx,1));
+                        
+                        // update length_sum
+                        for i in (piece_idx+1)..(self.pieces.len()-1) {
+                            println!("SHIFT length_sum @{}", i); 
+                            // Shift pieces ahead
+                            self.length_sum.sub(i,   self.pieces[i].len());
+                            self.length_sum.add(i+1, self.pieces[i].len());
+                        }
+
+                        self.length_sum.add(piece_idx+1, 1);
+                    },
+                    Ref::Append(x, l) => {
+                        println!("ADD@PIECE");
+                        self.append.text.push(c);
+                        self.pieces[piece_idx] = Ref::Append(x,l+1);
+                        self.length_sum.add(piece_idx, 1);
+                    }
+                }
+            },
+            Err(left_idx) => {
+            },
+        }
+        println!("Updated piece table:");
+        for x in &self.pieces {
+            println!("  - {:?}", x);
+        }
+        println!("  orig:{}\n  apnd:{}", self.original.text.iter().collect::<String>(), self.append.text.iter().collect::<String>());
+    }
+
+    pub fn remove(&mut self, idx: usize, len :usize) {
+    }
+
+    pub fn get(&mut self, idx :usize) -> char {
+        let left = self.length_sum.find_prefix_left(idx);
+        let prefix = if left > 0 { self.length_sum.prefix_sum(left - 1) }  else { 0 };
+        //println!("Getting at {}, left {} prefix {}", idx, left, prefix);
+        let offset = idx - prefix;
+        self.get_ref(&self.pieces[left])[offset]
+    }
+
+    fn foo(n: u32) -> impl Iterator<Item = char> {
+        (0..n).map(|x| 'c')
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Document;
+
+    #[test]
+    fn test_doc_immutable() {
+        let mut doc = Document::new("hallo".to_string());
+        assert_eq!(doc.get(0), 'h');
+        assert_eq!(doc.get(1), 'a');
+        assert_eq!(doc.get(2), 'l');
+        assert_eq!(doc.get(3), 'l');
+        assert_eq!(doc.get(4), 'o');
+    }
+
+    #[test]
+    fn test_doc_insert() {
+        let mut doc = Document::new("hallo".to_string());
+        doc.insert(5, 'x');
+        doc.insert(6, 'y');
+
+        assert_eq!(doc.get(0), 'h');
+        assert_eq!(doc.get(1), 'a');
+        assert_eq!(doc.get(2), 'l');
+        assert_eq!(doc.get(3), 'l');
+        assert_eq!(doc.get(4), 'o');
+        assert_eq!(doc.get(5), 'x');
+        assert_eq!(doc.get(6), 'y');
     }
 }
 
