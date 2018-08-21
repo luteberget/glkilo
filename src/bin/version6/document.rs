@@ -32,6 +32,20 @@ impl Ref {
             Ref::Append(x,l) => (Ref::Append(*x,len), Ref::Append(x+len,l-len)),
         }
     }
+
+    pub fn skip(self, len :usize) -> Ref {
+        match self {
+            Ref::Original(x,l) => Ref::Original(x+len,l-len),
+            Ref::Append(x,l) => Ref::Append(x+len,l-len),
+        }
+    }
+
+    pub fn pop(self, len:usize) -> Ref {
+        match self {
+            Ref::Original(x,l) => Ref::Original(x,l-len),
+            Ref::Append(x,l) => Ref::Append(x,l-len),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -117,6 +131,40 @@ impl Document {
             println!("DOC OP {:?}", op);
             self.print_prefixes();
             println!("DOC OP {:?}", op);
+        }
+    }
+
+    pub fn remove_actions(&mut self, idx: usize) -> Vec<DocOp> {
+        if self.pieces.len() == 0 { return vec![] };
+        if idx == 0 {
+            if self.pieces[0].len() == 1{
+                vec![DocOp::Remove(0, self.pieces[0])]
+            } else {
+                vec![DocOp::Set(0, self.pieces[0], self.pieces[0].skip(1))]
+            }
+        } else {
+            match self.length_sum.find_prefix(idx) {
+                Ok(piece_idx) => { // remove from start 
+                    if self.pieces[piece_idx].len() > 1 {
+                        vec![DocOp::Set(piece_idx, self.pieces[piece_idx], self.pieces[piece_idx].skip(1))]
+                    } else {
+                        vec![DocOp::Remove(piece_idx, self.pieces[piece_idx])]
+                    }
+                },
+                Err(piece_idx) => { // split piece
+                    if piece_idx > (self.pieces.len() -1) { panic!("Delete action after end of buffer"); }
+                    let length_before_piece = if piece_idx == 0 { 0 } else { self.length_sum.prefix_sum(piece_idx -1) };
+                    let (before,after) = self.pieces[piece_idx].split(idx-length_before_piece);
+
+                    if after.len() > 1 {
+                        vec![DocOp::Remove(piece_idx, self.pieces[piece_idx]),
+                             DocOp::Insert(piece_idx, before),
+                             DocOp::Insert(piece_idx+1, after.skip(1))]
+                    } else {
+                        vec![DocOp::Set(piece_idx, self.pieces[piece_idx], before)]
+                    }
+                }
+            }
         }
     }
 
@@ -259,7 +307,24 @@ impl Document {
     //    println!("  orig:{}\n  apnd:{}", self.original.text.iter().collect::<String>(), self.append.text.iter().collect::<String>());
     //}
 
-    pub fn remove(&mut self, idx: usize, len :usize) {
+    pub fn remove(&mut self, idx: usize) {
+          println!("OLD piece table:");
+          for x in &self.pieces {
+              println!("  - {:?}", x);
+          }
+          println!("  orig:{}\n  apnd:{}", self.original.text.iter().collect::<String>(), self.append.text.iter().collect::<String>());
+          println!("  FIND {}@ {:?}", idx, self.length_sum.find_prefix(idx));
+      
+        let actions = self.remove_actions(idx);
+        println!("ACTIONS: {:?}", actions);
+        self.run(&actions);
+          println!("Updated piece table:");
+          for x in &self.pieces {
+              println!("  - {:?}", x);
+          }
+          println!("  orig:{}\n  apnd:{}", self.original.text.iter().collect::<String>(), self.append.text.iter().collect::<String>());
+          println!(" FENWICK {:?} len{}", self.length_sum, self.len());
+          self.print_prefixes();
     }
 
     pub fn get(&mut self, idx :usize) -> char {
@@ -310,6 +375,22 @@ mod tests {
         assert_eq!(doc.get(3), 'l');
         assert_eq!(doc.get(4), 'l');
         assert_eq!(doc.get(5), 'o');
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut doc = Document::new("Hallo".to_string());
+        doc.remove(0);
+        assert_eq!(doc.len(), 4);
+        assert_eq!(doc.to_string(), "allo"); 
+
+        doc.insert(0,'H');
+        doc.remove(4);
+        assert_eq!(doc.len(), 4);
+        assert_eq!(doc.to_string(), "Hall"); 
+        doc.remove(2);
+        assert_eq!(doc.len(), 3);
+        assert_eq!(doc.to_string(), "Hal"); 
     }
 
     #[test]
