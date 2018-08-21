@@ -78,6 +78,15 @@ impl Document {
         x
     }
 
+    pub fn empty() -> Document {
+        Document {
+            original: Buffer { text: Vec::new() },
+            append:   Buffer { text: Vec::new() },
+            pieces: Vec::new(),
+            length_sum:Fenwick::new(),
+        }
+    }
+
     pub fn new(text :String) -> Document {
         let text :Vec<char> = text.chars().collect();
         let length     = text.len();
