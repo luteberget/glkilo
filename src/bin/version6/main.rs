@@ -44,6 +44,11 @@ fn exec(mut editor :editor::Editor) {
     let mut glyph_brush = glyph_brush_builder.build(factory.clone());
     let mut encoder :gfx::Encoder<_, _> = factory.create_command_buffer().into();
 
+    let mut size = 20.0;
+    let mut scale = gfx_glyph::Scale::uniform(size);
+    let mut metrics = glyph_brush.fonts()[gfx_glyph::FontId::default()].v_metrics(scale);
+    let mut ctrl = false;
+
     loop {
         let mut finished = false;
         {
@@ -51,6 +56,19 @@ fn exec(mut editor :editor::Editor) {
                 use glutin::*;
                 if let Event::WindowEvent { event, .. } = event {
                     match event {
+                        WindowEvent::CloseRequested => finished = true,
+                        WindowEvent::MouseWheel {
+                            delta: MouseScrollDelta::LineDelta(_, y),
+                            modifiers: ModifiersState { ctrl, shift, .. },
+                            ..
+                        } => {
+                            //println!("scroll {} {}", y, ctrl);
+                            if ctrl {
+                                size = size + size*y*0.1;
+                                scale = gfx_glyph::Scale::uniform(size);
+                                metrics = glyph_brush.fonts()[gfx_glyph::FontId::default()].v_metrics(scale);
+                            }
+                        },
                         WindowEvent::Resized(size) => {
                             window.resize(size.to_physical(window.get_hidpi_factor()));
                             gfx_window_glutin::update_views(&window, &mut main_color, &mut main_depth);
@@ -73,14 +91,14 @@ fn exec(mut editor :editor::Editor) {
 
         if finished { break; }
 
-        encoder.clear(&main_color, [0.02, 0.02, 0.02, 1.0]);
+        encoder.clear(&main_color, [0.08, 0.02, 0.02, 1.0]);
         let (width, height, ..) = main_color.get_dimensions();
         let (width, height) = (f32::from(width), f32::from(height));
 
-        editor.render((width,height), |cmd: &renderer::TextCommand| {
+        editor.render((width,height), metrics, |cmd: &renderer::TextCommand| {
             glyph_brush.queue(gfx_glyph::Section {
                 text: cmd.text,
-                scale: gfx_glyph::Scale::uniform(cmd.size),
+                scale: scale,
                 screen_position: cmd.rect.0,
                 bounds: ((cmd.rect.1).0 - (cmd.rect.0).0, 
                          (cmd.rect.1).1 - (cmd.rect.0).1),
