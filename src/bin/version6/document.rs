@@ -78,6 +78,31 @@ impl Document {
         x
     }
 
+    pub fn prev_linebreak(&self, mut i :usize) -> Option<usize> {
+        // TODO this does too much work 
+        let s = self.to_string().chars().collect::<Vec<_>>();
+        i = usize::min(i,s.len()-1);
+        while i > 0 {
+            if s[i] == '\n' {
+                return Some(i);
+            }
+            i -= 1;
+        }
+        None
+    }
+
+    pub fn next_linebreak(&self, mut i :usize) -> Option<usize> {
+        // TODO this does too much work 
+        let s = self.to_string().chars().collect::<Vec<_>>();
+        while i < s.len() {
+            if s[i] == '\n' {
+                return Some(i);
+            }
+            i += 1;
+        }
+        None
+    }
+
     pub fn empty() -> Document {
         Document {
             original: Buffer { text: Vec::new() },
@@ -153,23 +178,34 @@ impl Document {
             }
         } else {
             match self.length_sum.find_prefix(idx) {
-                Ok(piece_idx) => { // remove from start 
-                    if self.pieces[piece_idx].len() > 1 {
-                        vec![DocOp::Set(piece_idx, self.pieces[piece_idx], self.pieces[piece_idx].skip(1))]
+                Ok(piece_idx) => { // remove from start of piece_idx+1
+                    println!("remove: remove from start");
+                    let start_idx = piece_idx+1;
+                    if start_idx < self.pieces.len()  {
+                        if self.pieces[start_idx].len() > 1 {
+                            println!("remove: -set");
+                            vec![DocOp::Set(start_idx, self.pieces[start_idx], self.pieces[start_idx].skip(1))]
+                        } else {
+                            println!("remove: -remove piece");
+                            vec![DocOp::Remove(start_idx, self.pieces[start_idx])]
+                        }
                     } else {
-                        vec![DocOp::Remove(piece_idx, self.pieces[piece_idx])]
+                        panic!("Remove from after end of buffer");
                     }
                 },
                 Err(piece_idx) => { // split piece
+                    println!("remove: split piece");
                     if piece_idx > (self.pieces.len() -1) { panic!("Delete action after end of buffer"); }
                     let length_before_piece = if piece_idx == 0 { 0 } else { self.length_sum.prefix_sum(piece_idx -1) };
                     let (before,after) = self.pieces[piece_idx].split(idx-length_before_piece);
 
                     if after.len() > 1 {
+                        println!("remove: -split");
                         vec![DocOp::Remove(piece_idx, self.pieces[piece_idx]),
                              DocOp::Insert(piece_idx, before),
                              DocOp::Insert(piece_idx+1, after.skip(1))]
                     } else {
+                        println!("remove: -set");
                         vec![DocOp::Set(piece_idx, self.pieces[piece_idx], before)]
                     }
                 }
@@ -188,12 +224,15 @@ impl Document {
                 Ok(piece_idx) => { // Add to/after end of piece
                     match self.pieces[piece_idx] {
                         Ref::Original(_,_) => {
+                            println!("insert: orignal -> new append");
                             vec![DocOp::Insert(piece_idx+1, Ref::Append(append_idx,1))]
                         },
                         Ref::Append(x,l) => {
                             if x+l == append_idx {
+                                println!("insert: replace append");
                                 vec![DocOp::Set(piece_idx, self.pieces[piece_idx], Ref::Append(x,l+1))]
                             } else {
+                                println!("insert: append and new append");
                                 vec![DocOp::Insert(piece_idx+1, Ref::Append(append_idx,1))]
                             }
                         }
@@ -204,6 +243,7 @@ impl Document {
                     let length_before_piece = if piece_idx == 0 { 0 }  else { self.length_sum.prefix_sum(piece_idx-1 ) };
                     let (before,after) = self.pieces[piece_idx].split(idx-length_before_piece);
 
+                    println!("insert: split");
                     vec![DocOp::Remove(piece_idx, self.pieces[piece_idx]),
                          DocOp::Insert(piece_idx, before),
                          DocOp::Insert(piece_idx+1, Ref::Append(append_idx,1)),
@@ -384,6 +424,16 @@ mod tests {
         assert_eq!(doc.get(3), 'l');
         assert_eq!(doc.get(4), 'l');
         assert_eq!(doc.get(5), 'o');
+    }
+
+    #[test]
+    fn test_remove2() {
+        let mut doc = Document::empty();
+        doc.insert(0,'a');
+        doc.insert(1,'b');
+        assert_eq!(doc.to_string(),"ab");
+        doc.remove(1);
+        assert_eq!(doc.to_string(),"a");
     }
 
     #[test]

@@ -24,6 +24,10 @@ impl Fenwick {
             (self.0)[idx] -= value;
             idx = Self::next_down(idx);
         }
+
+        while let Some(0) = self.0.last() {
+            self.0.pop();
+        }
     }
 
     pub fn add(&mut self, mut idx :usize, value :usize) {
@@ -33,6 +37,10 @@ impl Fenwick {
         while idx != !0 {
             (self.0)[idx] += value;
             idx = Self::next_down(idx);
+        }
+
+        while let Some(0) = self.0.last() {
+            self.0.pop();
         }
     }
 
